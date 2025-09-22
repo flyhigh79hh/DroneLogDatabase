@@ -1,0 +1,6 @@
+.gemini/
+gha-creds-*.json
+DroneLogImport/*.csv
+backend/uploads/*
+*.csv
+*.zip
