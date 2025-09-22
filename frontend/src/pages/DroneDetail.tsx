@@ -251,10 +251,10 @@ function DroneDetail() {
                   <Grid item key={image.id}>
                     <Paper sx={{ p: 1, position: 'relative' }}>
                       <img
-                        src={`http://localhost:8000/images/drone/${image.id}`}
+                        src={`/images/drone/${image.id}`}
                         alt={image.description || 'Drone Image'}
                         style={{ width: '150px', height: '150px', objectFit: 'cover', cursor: 'pointer' }}
-                        onClick={() => handleOpenModal(`http://localhost:8000/images/drone/${image.id}`)}
+                        onClick={() => handleOpenModal(`/images/drone/${image.id}`)}
                       />
                       <Tooltip title="Delete Image">
                         <IconButton

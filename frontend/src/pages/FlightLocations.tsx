@@ -338,10 +338,10 @@ function FlightLocations() {
                         <Grid item key={image.id}>
                           <Paper sx={{ p: 1, position: 'relative' }}>
                             <img
-                              src={`http://localhost:8000/images/location/${image.id}`}
+                              src={`/images/location/${image.id}`}
                               alt={image.description || 'Location Image'}
                               style={{ width: '100px', height: '100px', objectFit: 'cover', cursor: 'pointer' }}
-                              onClick={() => handleOpenModal(`http://localhost:8000/images/location/${image.id}`)}
+                              onClick={() => handleOpenModal(`/images/location/${image.id}`)}
                             />
                             <Tooltip title="Delete Image">
                               <IconButton
