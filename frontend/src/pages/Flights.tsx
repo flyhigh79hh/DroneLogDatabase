@@ -190,7 +190,7 @@ function Flights() {
     formData.append('file', csvFile);
     formData.append('pilot_id', csvImportData.pilotId);
     if (csvImportData.droneId) formData.append('drone_id', csvImportData.droneId);
-    await axios.post('http://localhost:8000/flights/upload_csv', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+    await axios.post('/api/flights/upload_csv', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
     fetchFlights();
   };
 
@@ -198,7 +198,7 @@ function Flights() {
     if (!bulkImportPilot) return alert('Please select a pilot for bulk import.');
     const formData = new FormData();
     formData.append('pilot_id', bulkImportPilot);
-    await axios.post('http://localhost:8000/flights/import_all_csvs', formData);
+    await axios.post('/api/flights/import_all_csvs', formData);
     fetchFlights();
     fetchInitialData(); // Refresh locations
   };
