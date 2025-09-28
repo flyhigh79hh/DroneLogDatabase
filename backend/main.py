@@ -1781,6 +1781,27 @@ def process_edgetx_log(file_path: str, pilot_id: int, db: Session, reader: csv.D
             print(f"Error parsing row in {file_name}: {e} - Row: {row}")
             continue
 
+    # Find the last valid coordinate
+    last_lat, last_lon = None, None
+    for dp in reversed(flight_data_points):
+        if dp.get('latitude') is not None and dp.get('longitude') is not None:
+            last_lat, last_lon = dp['latitude'], dp['longitude']
+            break
+
+    if last_lat is not None and last_lon is not None:
+        # Find the first valid coordinate
+        first_valid_index = -1
+        for i, dp in enumerate(flight_data_points):
+            if dp.get('latitude') is not None and dp.get('longitude') is not None:
+                distance = haversine_distance(dp['latitude'], dp['longitude'], last_lat, last_lon)
+                if distance <= 20000:  # 20km in meters
+                    first_valid_index = i
+                    break
+
+        if first_valid_index != -1:
+            # Filter the data points
+            flight_data_points = flight_data_points[first_valid_index:]
+
     if not flight_data_points:
         print(f"Skipping {file_name}: No valid flight data points found.")
         return {"status": "skipped", "filename": file_name, "reason": "no valid data"}
