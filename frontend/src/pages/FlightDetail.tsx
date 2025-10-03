@@ -75,18 +75,43 @@ function FlightDetail() {
   const [is3DView, setIs3DView] = useState(false);
   const [altitudeOffset, setAltitudeOffset] = useState(50);
   const [showDipulMapLink, setShowDipulMapLink] = useState(true);
+  const [dateFormat, setDateFormat] = useState('MM/DD/YYYY');
+  const [timeFormat, setTimeFormat] = useState('HH:mm:ss');
 
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const response = await getSetting('show_dipul_map_link');
-        setShowDipulMapLink(response.data.value === 'true');
+        const showDipulMapLinkRes = await getSetting('show_dipul_map_link');
+        setShowDipulMapLink(showDipulMapLinkRes.data.value === 'true');
+        const dateFormatRes = await getSetting('date_format');
+        setDateFormat(dateFormatRes.data.value);
+        const timeFormatRes = await getSetting('time_format');
+        setTimeFormat(timeFormatRes.data.value);
       } catch (error) {
         console.error("Error fetching settings:", error);
       }
     };
     fetchSettings();
   }, []);
+
+  const formatDate = (date: Date) => {
+    const options: Intl.DateTimeFormatOptions = {
+      year: dateFormat.includes('YYYY') ? 'numeric' : undefined,
+      month: dateFormat.includes('MM') ? '2-digit' : undefined,
+      day: dateFormat.includes('DD') ? '2-digit' : undefined,
+    };
+    return new Intl.DateTimeFormat(undefined, options).format(date);
+  };
+
+  const formatTime = (date: Date) => {
+    const options: Intl.DateTimeFormatOptions = {
+      hour: timeFormat.includes('HH') || timeFormat.includes('h') ? '2-digit' : undefined,
+      minute: timeFormat.includes('mm') ? '2-digit' : undefined,
+      second: timeFormat.includes('ss') ? '2-digit' : undefined,
+      hour12: timeFormat.includes('a'),
+    };
+    return new Intl.DateTimeFormat(undefined, options).format(date);
+  };
 
   const fetchFlightDetails = useCallback(async () => {
     const response = await getFlightById(flightId);
@@ -155,7 +180,7 @@ function FlightDetail() {
           <Button onClick={() => handleExport(flightId, 'kml')}>Export KML</Button>
         </Box>
       </Box>
-      <Typography variant="h4" gutterBottom>Flight on {new Date(flight.flight_date).toLocaleDateString()}</Typography>
+      <Typography variant="h4" gutterBottom>Flight on {formatDate(new Date(flight.flight_date))}</Typography>
 
       <Grid container spacing={3}>
         <MetricCard title="Duration" value={formatDuration(flightDuration)} />
@@ -176,7 +201,7 @@ function FlightDetail() {
                 </a>
               )}
             </Typography>
-            <Typography><strong>Time:</strong> {startTime ? new Date(startTime).toLocaleTimeString() : 'N/A'}</Typography>
+            <Typography><strong>Time:</strong> {startTime ? formatTime(new Date(startTime)) : 'N/A'}</Typography>
             {logFileName && <Typography><strong>Log File:</strong> {logFileName}</Typography>}
           </Paper></Grid>
           <Grid item><Paper sx={{ p: 2 }}>

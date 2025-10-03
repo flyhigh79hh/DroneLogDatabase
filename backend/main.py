@@ -124,7 +124,7 @@ class Flight(Base):
     pilot_id = Column(Integer, ForeignKey("pilots.id"))
     drone_id = Column(Integer, ForeignKey("drones.id"))
     flight_location_id = Column(Integer, ForeignKey("flight_locations.id"), nullable=True)
-    flight_date = Column(Date)
+    flight_date = Column(DateTime)
     csv_log_path = Column(String, nullable=True)
     notes = Column(String, nullable=True)
     is_valid = Column(Boolean, default=True)
@@ -1054,7 +1054,7 @@ async def import_database(file: UploadFile = File(...), db: Session = Depends(ge
                 pilot=pilot,
                 drone=drone,
                 flight_location=flight_location,
-                flight_date=date.fromisoformat(flight_date) if isinstance(flight_date, str) else flight_date, # Ensure date object
+                flight_date=datetime.fromisoformat(flight_date) if isinstance(flight_date, str) else flight_date, # Ensure datetime object
                 notes=notes,
                 csv_log_path=csv_log_path,
                 is_valid=is_valid,
@@ -1282,7 +1282,7 @@ def create_flight(flight: FlightCreate, db: Session = Depends(get_db)):
     db_flight = Flight(
         pilot_id=flight.pilot_id,
         drone_id=flight.drone_id,
-        flight_date=flight.flight_date.date(), # Store only date
+        flight_date=flight.flight_date, # Store full timestamp
         notes=flight.notes,
         flight_location_id=flight_location_id,
         is_valid=True
@@ -1305,8 +1305,8 @@ def read_flights(
     limit: int = 25,
     location_id: Optional[int] = None,
     drone_id: Optional[int] = None,
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
     include_invalid: bool = False,
     db: Session = Depends(get_db)
 ):
@@ -1364,7 +1364,7 @@ def update_flight(flight_id: int, flight: FlightCreate, db: Session = Depends(ge
     
     db_flight.pilot_id = flight.pilot_id
     db_flight.drone_id = flight.drone_id
-    db_flight.flight_date = flight.flight_date.date()
+    db_flight.flight_date = flight.flight_date
     db_flight.notes = flight.notes
 
     # Update battery packs
@@ -1526,46 +1526,6 @@ def process_dji_log(file_path: str, pilot_id: int, db: Session, reader: csv.Dict
         drone_cache[drone_name_from_csv] = db_drone
 
     # Extract flight date from the first valid row (ignoring placeholder dates)
-    flight_date = None
-    for row in rows:
-        flight_date_str = row.get('CUSTOM.dateTime')
-        if flight_date_str and not flight_date_str.startswith('1970-01-01'):
-            try:
-                flight_date = datetime.fromisoformat(flight_date_str.replace('Z', '+00:00')).date()
-                break
-            except ValueError:
-                continue
-    
-    if not flight_date:
-        print(f"Skipping {file_name}: No valid 'CUSTOM.dateTime' found in CSV.")
-        return {"status": "skipped", "filename": file_name, "reason": "invalid date format"}
-
-    # Check if flight already exists
-    file_basename = os.path.basename(normalized_file_path)
-    print(f"DEBUG: Checking for existing flight with basename: {file_basename}")
-
-    # Query for flights with the same basename
-    potential_existing_flights = db.query(Flight).filter(
-        func.substr(Flight.csv_log_path, func.length(Flight.csv_log_path) - func.length(file_basename) + 1) == file_basename
-    ).all()
-
-    existing_flight = None
-    for flight in potential_existing_flights:
-        # Normalize the stored path for comparison
-        stored_path_basename = os.path.basename(flight.csv_log_path)
-        normalized_stored_path = os.path.join("/app/DroneLogImport", stored_path_basename)
-        
-        if normalized_stored_path == normalized_file_path:
-            existing_flight = flight
-            break
-
-    if existing_flight:
-        print(f"DEBUG: Found existing flight. Existing flight's csv_log_path: {existing_flight.csv_log_path}")
-        print(f"Skipping {file_name}: A flight from this log file has already been imported.")
-        return {"status": "skipped", "filename": file_name, "reason": "log file already imported"}
-    else:
-        print(f"DEBUG: No existing flight found for {normalized_file_path}")
-
     flight_data_points = []
     start_lat, start_lon = None, None
 
@@ -1609,6 +1569,8 @@ def process_dji_log(file_path: str, pilot_id: int, db: Session, reader: csv.Dict
     if not flight_data_points:
         print(f"Skipping {file_name}: No valid flight data points found.")
         return {"status": "skipped", "filename": file_name, "reason": "no valid data"}
+
+    flight_date = flight_data_points[0]['timestamp']
 
     # Calculate duration
     timestamps = [dp['timestamp'] for dp in flight_data_points if dp.get('timestamp')]
@@ -1708,44 +1670,8 @@ def process_edgetx_log(file_path: str, pilot_id: int, db: Session, reader: csv.D
         print(f"Skipping {file_name}: Drone name could not be identified from filename.")
         return {"status": "skipped", "filename": file_name, "reason": "drone name not in filename"}
 
-    # Extract main flight details from the first row
-    first_row = rows[0]
-    flight_date_str = first_row.get('Date', datetime.now().strftime("%Y-%m-%d"))
-    flight_notes = None
-
-    try:
-        flight_date = datetime.strptime(flight_date_str, "%Y-%m-%d").date()
-    except ValueError:
-        print(f"Skipping {file_name}: Invalid 'Date' format in CSV. Expected YYYY-MM-DD.")
-        return {"status": "skipped", "filename": file_name, "reason": "invalid date format"}
-
-    # Check if flight already exists
-    file_basename = os.path.basename(normalized_file_path)
-    print(f"DEBUG: Checking for existing flight with basename: {file_basename}")
-
-    # Query for flights with the same basename
-    potential_existing_flights = db.query(Flight).filter(
-        func.substr(Flight.csv_log_path, func.length(Flight.csv_log_path) - func.length(file_basename) + 1) == file_basename
-    ).all()
-
-    existing_flight = None
-    for flight in potential_existing_flights:
-        # Normalize the stored path for comparison
-        stored_path_basename = os.path.basename(flight.csv_log_path)
-        normalized_stored_path = os.path.join("/app/DroneLogImport", stored_path_basename)
-        
-        if normalized_stored_path == normalized_file_path:
-            existing_flight = flight
-            break
-
-    if existing_flight:
-        print(f"DEBUG: Found existing flight. Existing flight's csv_log_path: {existing_flight.csv_log_path}")
-        print(f"Skipping {file_name}: A flight from this log file has already been imported.")
-        return {"status": "skipped", "filename": file_name, "reason": "log file already imported"}
-    else:
-        print(f"DEBUG: No existing flight found for {normalized_file_path}")
-
     flight_data_points = []
+    flight_notes = None
     for row in rows:
         try:
             date_str = row.get('Date')
@@ -1780,6 +1706,12 @@ def process_edgetx_log(file_path: str, pilot_id: int, db: Session, reader: csv.D
         except (ValueError, TypeError) as e:
             print(f"Error parsing row in {file_name}: {e} - Row: {row}")
             continue
+
+    if not flight_data_points:
+        print(f"Skipping {file_name}: No valid flight data points found.")
+        return {"status": "skipped", "filename": file_name, "reason": "no valid data"}
+
+    flight_date = flight_data_points[0]['timestamp']
 
     # Find the last valid coordinate
     last_lat, last_lon = None, None

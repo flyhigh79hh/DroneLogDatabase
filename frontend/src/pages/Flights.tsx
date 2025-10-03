@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getFlights, createFlight, deleteFlight, getPilots, getDrones, getFlightLocations, assignFlightLocation, setFlightValidity } from '../services/api';
+import { getFlights, createFlight, deleteFlight, getPilots, getDrones, getFlightLocations, assignFlightLocation, setFlightValidity, getSetting } from '../services/api';
 import axios from 'axios';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
@@ -43,6 +43,7 @@ interface Flight {
   is_valid: boolean;
   invalidation_notes?: string;
   duration?: number;
+  flight_data: { timestamp: string }[];
 }
 
 // New interface for sortable columns
@@ -112,6 +113,35 @@ function Flights() {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [totalFlights, setTotalFlights] = useState(0);
   const [editingFlightId, setEditingFlightId] = useState<number | null>(null);
+  const [dateFormat, setDateFormat] = useState('MM/DD/YYYY');
+  const [timeFormat, setTimeFormat] = useState('HH:mm:ss');
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const dateFormatRes = await getSetting('date_format');
+        setDateFormat(dateFormatRes.data.value);
+        const timeFormatRes = await getSetting('time_format');
+        setTimeFormat(timeFormatRes.data.value);
+      } catch (error) {
+        console.error("Error fetching settings:", error);
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  const formatDateTime = (date: Date) => {
+    const options: Intl.DateTimeFormatOptions = {
+      year: dateFormat.includes('YYYY') ? 'numeric' : undefined,
+      month: dateFormat.includes('MM') ? '2-digit' : undefined,
+      day: dateFormat.includes('DD') ? '2-digit' : undefined,
+      hour: timeFormat.includes('HH') || timeFormat.includes('h') ? '2-digit' : undefined,
+      minute: timeFormat.includes('mm') ? '2-digit' : undefined,
+      second: timeFormat.includes('ss') ? '2-digit' : undefined,
+      hour12: timeFormat.includes('a'),
+    };
+    return new Intl.DateTimeFormat(undefined, options).format(date);
+  };
 
   const fetchFlights = useCallback(async () => {
     try {
@@ -161,7 +191,8 @@ function Flights() {
       pilot_name: f.pilot?.name || 'N/A',
       drone_name: f.drone?.name || 'N/A',
       location_name: f.flight_location?.name || 'ZZZ',
-      duration: f.duration || 0
+      duration: f.duration || 0,
+      flight_date: f.flight_data.length > 0 ? f.flight_data[0].timestamp : f.flight_date,
     }));
     return stableSort(sortable, getComparator(order, orderBy));
   }, [flights, order, orderBy]);
@@ -281,7 +312,7 @@ function Flights() {
                 <TableBody>
                   {sortedFlights.map((flight) => (
                     <TableRow key={flight.id} hover sx={{ backgroundColor: flight.is_valid ? 'inherit' : '#ffebee' }}>
-                      <TableCell><Tooltip title={flight.flight_date}><RouterLink to={`/flights/${flight.id}`}>{new Date(flight.flight_date).toLocaleDateString()}</RouterLink></Tooltip></TableCell>
+                      <TableCell><Tooltip title={flight.flight_date}><RouterLink to={`/flights/${flight.id}`}>{flight.flight_data.length > 0 ? formatDateTime(new Date(flight.flight_data[0].timestamp)) : new Date(flight.flight_date).toLocaleDateString()}</RouterLink></Tooltip></TableCell>
                       <TableCell>{flight.pilot_name}</TableCell>
                       <TableCell>{flight.drone_name}</TableCell>
                       <TableCell>{formatDuration(flight.duration)}</TableCell>

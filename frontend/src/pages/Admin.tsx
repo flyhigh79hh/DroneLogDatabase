@@ -9,7 +9,8 @@ import {
   Alert,
   AlertTitle,
   Switch,
-  FormControlLabel
+  FormControlLabel,
+  TextField
 } from '@mui/material';
 import { MdUploadFile, MdDownload } from 'react-icons/md';
 
@@ -23,12 +24,18 @@ const Admin: React.FC = () => {
   const [importZipFile, setImportZipFile] = useState<File | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState>({ type: '', message: '' });
   const [showDipulMapLink, setShowDipulMapLink] = useState(true);
+  const [dateFormat, setDateFormat] = useState('MM/DD/YYYY');
+  const [timeFormat, setTimeFormat] = useState('HH:mm:ss');
 
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const response = await getSetting('show_dipul_map_link');
-        setShowDipulMapLink(response.data.value === 'true');
+        const showDipulMapLinkRes = await getSetting('show_dipul_map_link');
+        setShowDipulMapLink(showDipulMapLinkRes.data.value === 'true');
+        const dateFormatRes = await getSetting('date_format');
+        setDateFormat(dateFormatRes.data.value);
+        const timeFormatRes = await getSetting('time_format');
+        setTimeFormat(timeFormatRes.data.value);
       } catch (error) {
         console.error("Error fetching settings:", error);
       }
@@ -149,6 +156,17 @@ const Admin: React.FC = () => {
     }
   };
 
+  const handleSaveSettings = async () => {
+    try {
+      await updateSetting('date_format', dateFormat);
+      await updateSetting('time_format', timeFormat);
+      setFeedback({ type: 'success', message: 'Settings saved successfully!' });
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      setFeedback({ type: 'error', message: 'Error saving settings. Check console for details.' });
+    }
+  };
+
   return (
     <Box>
       <Typography variant="h4" gutterBottom>Admin Panel</Typography>
@@ -205,6 +223,23 @@ const Admin: React.FC = () => {
               control={<Switch checked={showDipulMapLink} onChange={handleDipulLinkChange} />}
               label="Show Dipul Map Link (for Germany)"
             />
+            <TextField
+              label="Date Format"
+              value={dateFormat}
+              onChange={(e) => setDateFormat(e.target.value)}
+              fullWidth
+              margin="normal"
+              helperText="e.g., YYYY-MM-DD, MM/DD/YYYY, DD.MM.YYYY"
+            />
+            <TextField
+              label="Time Format"
+              value={timeFormat}
+              onChange={(e) => setTimeFormat(e.target.value)}
+              fullWidth
+              margin="normal"
+              helperText="e.g., HH:mm:ss, h:mm:ss a"
+            />
+            <Button variant="contained" onClick={handleSaveSettings}>Save Settings</Button>
           </Paper>
         </Grid>
 
